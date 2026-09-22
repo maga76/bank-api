@@ -1,9 +1,11 @@
-from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
 from rest_framework import generics, permissions, status
 from rest_framework.response import Response
 from .models import User
-from .serializers import SendOTPSerializer, VerifyOTPSerializer, UserSerializer
+from .serializers import (
+    SendOTPSerializer, VerifyOTPSerializer,
+    LoginOTPSerializer, UserSerializer
+)
 from banck.serializers import AccountSerializer
 
 
@@ -27,11 +29,27 @@ class VerifyOTPView(generics.CreateAPIView):
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        account = serializer.save()
+        result = serializer.save()
         return Response({
             'message': 'Account created successfully',
-            'account': AccountSerializer(account).data,
+            'token': result['token'],
+            'account': AccountSerializer(result['account']).data,
         }, status=status.HTTP_201_CREATED)
+
+
+class LoginOTPView(generics.CreateAPIView):
+    serializer_class = LoginOTPSerializer
+    permission_classes = [permissions.AllowAny]
+
+    @swagger_auto_schema(request_body=LoginOTPSerializer, responses={200: 'Token'})
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        result = serializer.save()
+        return Response({
+            'message': 'Login successful',
+            'token': result['token'],
+        }, status=status.HTTP_200_OK)
 
 
 class UserProfileView(generics.RetrieveAPIView):
