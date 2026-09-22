@@ -24,6 +24,7 @@ class CardDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 
 class CardLookupView(generics.GenericAPIView):
+    serializer_class = CardSerializer
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
