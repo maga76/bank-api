@@ -4,16 +4,24 @@ from rest_framework.response import Response
 from .models import User
 from .serializers import (
     SendOTPSerializer, VerifyOTPSerializer,
-    LoginOTPSerializer, UserSerializer
+    LoginOTPSerializer, UserSerializer,
+    MessageResponseSerializer, VerifyOTPResponseSerializer,
+    LoginOTPResponseSerializer,
 )
 from banck.serializers import AccountSerializer
 
 
 class SendOTPView(generics.CreateAPIView):
     serializer_class = SendOTPSerializer
+    authentication_classes = []
     permission_classes = [permissions.AllowAny]
 
-    @swagger_auto_schema(request_body=SendOTPSerializer, responses={200: 'OTP sent'})
+    @swagger_auto_schema(
+        operation_summary='Request an OTP',
+        operation_description='The OTP is printed to the server console in development.',
+        security=[],
+        responses={200: MessageResponseSerializer, 400: 'Invalid request'},
+    )
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -23,9 +31,14 @@ class SendOTPView(generics.CreateAPIView):
 
 class VerifyOTPView(generics.CreateAPIView):
     serializer_class = VerifyOTPSerializer
+    authentication_classes = []
     permission_classes = [permissions.AllowAny]
 
-    @swagger_auto_schema(request_body=VerifyOTPSerializer, responses={201: AccountSerializer})
+    @swagger_auto_schema(
+        operation_summary='Verify OTP and create an account',
+        security=[],
+        responses={201: VerifyOTPResponseSerializer, 400: 'Invalid or expired OTP'},
+    )
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -39,9 +52,14 @@ class VerifyOTPView(generics.CreateAPIView):
 
 class LoginOTPView(generics.CreateAPIView):
     serializer_class = LoginOTPSerializer
+    authentication_classes = []
     permission_classes = [permissions.AllowAny]
 
-    @swagger_auto_schema(request_body=LoginOTPSerializer, responses={200: 'Token'})
+    @swagger_auto_schema(
+        operation_summary='Log in with an OTP',
+        security=[],
+        responses={200: LoginOTPResponseSerializer, 400: 'Invalid OTP'},
+    )
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)

@@ -1,3 +1,5 @@
+from drf_yasg import openapi
+from drf_yasg.utils import swagger_auto_schema
 from rest_framework import generics, permissions
 from rest_framework.response import Response
 from accounts.models import User
@@ -12,6 +14,8 @@ class CardListCreateView(generics.ListCreateAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
+        if getattr(self, 'swagger_fake_view', False):
+            return Card.objects.none()
         return own_cards(self.request.user)
 
 
@@ -20,6 +24,8 @@ class CardDetailView(generics.RetrieveUpdateDestroyAPIView):
     permission_classes = [permissions.IsAuthenticated, IsOwner]
 
     def get_queryset(self):
+        if getattr(self, 'swagger_fake_view', False):
+            return Card.objects.none()
         return own_cards(self.request.user)
 
 
@@ -27,6 +33,27 @@ class CardLookupView(generics.GenericAPIView):
     serializer_class = CardSerializer
     permission_classes = [permissions.IsAuthenticated]
 
+    @swagger_auto_schema(
+        operation_summary='Find a card by number or phone',
+        operation_description='Provide either number or phone. Requires a Bearer token.',
+        manual_parameters=[
+            openapi.Parameter('number', openapi.IN_QUERY, type=openapi.TYPE_STRING),
+            openapi.Parameter('phone', openapi.IN_QUERY, type=openapi.TYPE_STRING),
+        ],
+        responses={
+            200: openapi.Schema(
+                type=openapi.TYPE_OBJECT,
+                properties={
+                    'card_id': openapi.Schema(type=openapi.TYPE_INTEGER),
+                    'card_number': openapi.Schema(type=openapi.TYPE_STRING),
+                    'card_type': openapi.Schema(type=openapi.TYPE_STRING),
+                    'owner': openapi.Schema(type=openapi.TYPE_STRING),
+                },
+            ),
+            400: 'Provide number or phone',
+            404: 'Card or user not found',
+        },
+    )
     def get(self, request):
         number = request.query_params.get('number')
         phone = request.query_params.get('phone')
@@ -79,6 +106,8 @@ class TransactionListView(generics.ListAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
+        if getattr(self, 'swagger_fake_view', False):
+            return Transaction.objects.none()
         return own_transactions(self.request.user)
 
 
@@ -87,6 +116,8 @@ class TransactionDetailView(generics.RetrieveAPIView):
     permission_classes = [permissions.IsAuthenticated, IsOwner]
 
     def get_queryset(self):
+        if getattr(self, 'swagger_fake_view', False):
+            return Transaction.objects.none()
         return own_transactions(self.request.user)
 
 
@@ -95,7 +126,7 @@ class TransferByCardView(generics.CreateAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request):
-        serializer = TransferByCardSerializer(data=request.data)
+        serializer = self.get_serializer(data=request.data)
 
         serializer.is_valid(raise_exception=True)
 
@@ -111,7 +142,7 @@ class TransferByPhoneView(generics.CreateAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request):
-        serializer = TransferByPhoneSerializer(data=request.data)
+        serializer = self.get_serializer(data=request.data)
 
         serializer.is_valid(raise_exception=True)
 
@@ -127,7 +158,7 @@ class InsideTransferByPhoneView(generics.CreateAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request):
-        serializer = InsideTransferByPhoneSerializer(data=request.data)
+        serializer = self.get_serializer(data=request.data)
 
         serializer.is_valid(raise_exception=True)
 
@@ -143,7 +174,7 @@ class InsideTransferByCardView(generics.CreateAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request):
-        serializer = InsideTransferByCardSerializer(data=request.data)
+        serializer = self.get_serializer(data=request.data)
 
         serializer.is_valid(raise_exception=True)
 
@@ -159,7 +190,7 @@ class GetCreditView(generics.CreateAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request):
-        serializer = GetCreditInputSerializer(data=request.data)
+        serializer = self.get_serializer(data=request.data)
 
         serializer.is_valid(raise_exception=True)
 
@@ -175,7 +206,7 @@ class PutDepositView(generics.CreateAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request):
-        serializer = PutDepositInputSerializer(data=request.data)
+        serializer = self.get_serializer(data=request.data)
 
         serializer.is_valid(raise_exception=True)
 
@@ -191,6 +222,8 @@ class InsideTransactionListView(generics.ListAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
+        if getattr(self, 'swagger_fake_view', False):
+            return TransactionInside.objects.none()
         return own_inside_transactions(self.request.user)
 
 
@@ -199,7 +232,7 @@ class AddAccountToBlacklistView(generics.CreateAPIView):
     permission_classes = [permissions.IsAdminUser]
 
     def post(self, request):
-        serializer = BlackListAccountInputSerializer(data=request.data)
+        serializer = self.get_serializer(data=request.data)
 
         serializer.is_valid(raise_exception=True)
 
@@ -215,7 +248,7 @@ class AddCardToBlacklistView(generics.CreateAPIView):
     permission_classes = [permissions.IsAdminUser]
 
     def post(self, request):
-        serializer = BlackListCardInputSerializer(data=request.data)
+        serializer = self.get_serializer(data=request.data)
 
         serializer.is_valid(raise_exception=True)
 

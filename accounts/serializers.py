@@ -1,8 +1,25 @@
-import random
+import secrets
+from datetime import timedelta
+
 from django.core.mail import send_mail
+from django.utils import timezone
 from rest_framework import serializers
 from rest_framework.authtoken.models import Token
+from banck.serializers import AccountSerializer
 from .models import User
+
+
+class MessageResponseSerializer(serializers.Serializer):
+    message = serializers.CharField()
+
+
+class VerifyOTPResponseSerializer(MessageResponseSerializer):
+    token = serializers.CharField()
+    account = AccountSerializer()
+
+
+class LoginOTPResponseSerializer(MessageResponseSerializer):
+    token = serializers.CharField()
 
 
 class SendOTPSerializer(serializers.Serializer):
@@ -10,11 +27,12 @@ class SendOTPSerializer(serializers.Serializer):
 
     def create(self, validated_data):
         phone_num = validated_data['phone_num']
-        otp = str(random.randint(100000, 999999))
+        otp = str(100000 + secrets.randbelow(900000))
 
         user, created = User.objects.get_or_create(phone_num=phone_num, defaults={'username': phone_num})
         user.otp = otp
-        user.save()
+        user.otp_created_at = timezone.now()
+        user.save(update_fields=['otp', 'otp_created_at'])
 
         send_mail(
             subject='Your OTP Code',
@@ -39,8 +57,16 @@ class VerifyOTPSerializer(serializers.Serializer):
         except User.DoesNotExist:
             raise serializers.ValidationError({'error': 'User not found'})
 
-        if user.otp != attrs['otp']:
-            raise serializers.ValidationError({'error': 'Invalid OTP'})
+        if user.is_verified:
+            raise serializers.ValidationError({'error': 'Account already verified; use login instead'})
+
+        if (
+            not user.otp_created_at
+            or user.otp_created_at < timezone.now() - timedelta(minutes=5)
+            or not user.otp
+            or not secrets.compare_digest(user.otp, attrs['otp'])
+        ):
+            raise serializers.ValidationError({'error': 'Invalid or expired OTP'})
 
         attrs['user'] = user
         return attrs
@@ -49,7 +75,8 @@ class VerifyOTPSerializer(serializers.Serializer):
         user = validated_data['user']
         user.is_verified = True
         user.otp = None
-        user.save()
+        user.otp_created_at = None
+        user.save(update_fields=['is_verified', 'otp', 'otp_created_at'])
 
         from banck.models import Account
         account = Account.objects.create(
@@ -73,8 +100,13 @@ class LoginOTPSerializer(serializers.Serializer):
         except User.DoesNotExist:
             raise serializers.ValidationError({'error': 'User not found'})
 
-        if user.otp != attrs['otp']:
-            raise serializers.ValidationError({'error': 'Invalid OTP'})
+        if (
+            not user.otp_created_at
+            or user.otp_created_at < timezone.now() - timedelta(minutes=5)
+            or not user.otp
+            or not secrets.compare_digest(user.otp, attrs['otp'])
+        ):
+            raise serializers.ValidationError({'error': 'Invalid or expired OTP'})
 
         if not user.is_verified:
             raise serializers.ValidationError({'error': 'User not verified'})
@@ -85,7 +117,8 @@ class LoginOTPSerializer(serializers.Serializer):
     def create(self, validated_data):
         user = validated_data['user']
         user.otp = None
-        user.save()
+        user.otp_created_at = None
+        user.save(update_fields=['otp', 'otp_created_at'])
 
         token, _ = Token.objects.get_or_create(user=user)
         return {'token': token.key}

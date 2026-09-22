@@ -5,6 +5,7 @@ from django.db import models
 class User(AbstractUser):
     phone_num = models.CharField(max_length=20, unique=True)
     otp = models.CharField(max_length=6, blank=True, null=True)
+    otp_created_at = models.DateTimeField(blank=True, null=True)
     is_verified = models.BooleanField(default=False)
 
     USERNAME_FIELD = 'phone_num'

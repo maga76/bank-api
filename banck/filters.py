@@ -18,4 +18,7 @@ def own_inside_transactions(user):
     if not account:
         return TransactionInside.objects.none()
     phone = account.user.phone_num
-    return TransactionInside.objects.filter(Q(sender=phone) | Q(reciver=phone))
+    card_numbers = Card.objects.filter(account=account).values_list('card_id', flat=True)
+    return TransactionInside.objects.filter(
+        Q(sender=phone) | Q(reciver=phone) | Q(reciver__in=card_numbers)
+    )

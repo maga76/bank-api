@@ -1,4 +1,5 @@
-import random
+import secrets
+from decimal import Decimal
 from django.db import transaction
 from rest_framework import serializers
 from accounts.models import User
@@ -15,6 +16,7 @@ class CardSerializer(serializers.ModelSerializer):
     class Meta:
         model = Card
         fields = ['id', 'card_id', 'card_name', 'balance', 'cvv', 'created_at', 'expair']
+        read_only_fields = ['id', 'card_id', 'balance', 'cvv', 'created_at']
 
     def create(self, data):
         user = self.context['request'].user
@@ -24,7 +26,7 @@ class CardSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError('Account not found')
 
         while True:
-            card_id = str(random.randint(1000000000000000, 9999999999999999))
+            card_id = str(1000000000000000 + secrets.randbelow(9000000000000000))
             if not Card.objects.filter(card_id=card_id).exists():
                 break
 
@@ -32,7 +34,7 @@ class CardSerializer(serializers.ModelSerializer):
             account=account,
             card_id=card_id,
             card_name=data.get('card_name', 'simple'),
-            cvv=str(random.randint(100, 999)),
+            cvv=str(100 + secrets.randbelow(900)),
             expair=data.get('expair')
         )
 
@@ -96,6 +98,9 @@ class TransferByCardSerializer(serializers.Serializer):
 
         if not card:
             raise serializers.ValidationError('Card not found')
+
+        if BlackListCard.objects.filter(card=card).exists():
+            raise serializers.ValidationError('Card blacklisted')
 
         receiver = card.account
         amount = data['amount']
@@ -182,7 +187,7 @@ class TransferByPhoneSerializer(serializers.Serializer):
             receiver.save()
 
             return Transaction.objects.create(
-                type='phone',
+                type='phone_num',
                 sender=sender,
                 reciver=receiver,
                 amount=amount,
@@ -267,6 +272,9 @@ class InsideTransferByCardSerializer(serializers.Serializer):
         if not sender or not card:
             raise serializers.ValidationError('Card not found')
 
+        if BlackListCard.objects.filter(card=card).exists():
+            raise serializers.ValidationError('Card blacklisted')
+
         receiver = card.account
         amount = data['amount']
 
@@ -305,8 +313,8 @@ class InsideTransferByCardSerializer(serializers.Serializer):
 
 class GetCreditInputSerializer(serializers.Serializer):
     card_id = serializers.CharField()
-    amount = serializers.DecimalField(max_digits=15, decimal_places=2)
-    procent = serializers.DecimalField(max_digits=5, decimal_places=2)
+    amount = serializers.DecimalField(max_digits=15, decimal_places=2, min_value=Decimal('0.01'))
+    procent = serializers.DecimalField(max_digits=5, decimal_places=2, min_value=Decimal('0'))
 
     def create(self, data):
         card = Card.objects.filter(
@@ -318,6 +326,9 @@ class GetCreditInputSerializer(serializers.Serializer):
 
         if card.account.user != self.context['request'].user:
             raise serializers.ValidationError('Not your card')
+
+        if BlackListCard.objects.filter(card=card).exists():
+            raise serializers.ValidationError('Card blacklisted')
 
         if card.card_name != 'credit':
             raise serializers.ValidationError('Card must be credit')
@@ -340,8 +351,8 @@ class GetCreditInputSerializer(serializers.Serializer):
 
 class PutDepositInputSerializer(serializers.Serializer):
     card_id = serializers.CharField()
-    amount = serializers.DecimalField(max_digits=15, decimal_places=2)
-    procent = serializers.DecimalField(max_digits=5, decimal_places=2)
+    amount = serializers.DecimalField(max_digits=15, decimal_places=2, min_value=Decimal('0.01'))
+    procent = serializers.DecimalField(max_digits=5, decimal_places=2, min_value=Decimal('0'))
 
     def create(self, data):
         card = Card.objects.filter(
@@ -353,6 +364,9 @@ class PutDepositInputSerializer(serializers.Serializer):
 
         if card.account.user != self.context['request'].user:
             raise serializers.ValidationError('Not your card')
+
+        if BlackListCard.objects.filter(card=card).exists():
+            raise serializers.ValidationError('Card blacklisted')
 
         if card.balance < data['amount']:
             raise serializers.ValidationError('Not enough money')
