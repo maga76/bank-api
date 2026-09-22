@@ -1,9 +1,20 @@
 import secrets
 from decimal import Decimal
 from django.db import transaction
+from django.db.models import F
 from rest_framework import serializers
 from accounts.models import User
 from .models import *
+
+
+def _move_account_balance(sender, receiver, amount):
+    if not Account.objects.filter(pk=sender.pk, balance__gte=amount).update(
+        balance=F('balance') - amount
+    ):
+        raise serializers.ValidationError('Not enough money')
+    Account.objects.filter(pk=receiver.pk).update(balance=F('balance') + amount)
+    sender.refresh_from_db(fields=['balance'])
+    receiver.refresh_from_db(fields=['balance'])
 
 
 class AccountSerializer(serializers.ModelSerializer):
@@ -15,8 +26,8 @@ class AccountSerializer(serializers.ModelSerializer):
 class CardSerializer(serializers.ModelSerializer):
     class Meta:
         model = Card
-        fields = ['id', 'card_id', 'card_name', 'balance', 'cvv', 'created_at', 'expair']
-        read_only_fields = ['id', 'card_id', 'balance', 'cvv', 'created_at']
+        fields = ['id', 'card_id', 'card_name', 'balance', 'created_at', 'expair']
+        read_only_fields = ['id', 'card_id', 'balance', 'created_at']
 
     def create(self, data):
         user = self.context['request'].user
@@ -121,10 +132,7 @@ class TransferByCardSerializer(serializers.Serializer):
             raise serializers.ValidationError('Receiver blacklisted')
 
         with transaction.atomic():
-            sender.balance -= amount
-            receiver.balance += amount
-            sender.save()
-            receiver.save()
+            _move_account_balance(sender, receiver, amount)
 
             return Transaction.objects.create(
                 type='card',
@@ -181,10 +189,7 @@ class TransferByPhoneSerializer(serializers.Serializer):
             raise serializers.ValidationError('Receiver blacklisted')
 
         with transaction.atomic():
-            sender.balance -= amount
-            receiver.balance += amount
-            sender.save()
-            receiver.save()
+            _move_account_balance(sender, receiver, amount)
 
             return Transaction.objects.create(
                 type='phone_num',
@@ -238,10 +243,7 @@ class InsideTransferByPhoneSerializer(serializers.Serializer):
             raise serializers.ValidationError('Receiver blacklisted')
 
         with transaction.atomic():
-            sender.balance -= amount
-            receiver.balance += amount
-            sender.save()
-            receiver.save()
+            _move_account_balance(sender, receiver, amount)
 
             return TransactionInside.objects.create(
                 type='phone_num',
@@ -294,10 +296,7 @@ class InsideTransferByCardSerializer(serializers.Serializer):
             raise serializers.ValidationError('Receiver blacklisted')
 
         with transaction.atomic():
-            sender.balance -= amount
-            receiver.balance += amount
-            sender.save()
-            receiver.save()
+            _move_account_balance(sender, receiver, amount)
 
             return TransactionInside.objects.create(
                 type='card',
@@ -330,6 +329,9 @@ class GetCreditInputSerializer(serializers.Serializer):
         if BlackListCard.objects.filter(card=card).exists():
             raise serializers.ValidationError('Card blacklisted')
 
+        if BlackListAccount.objects.filter(account=card.account).exists():
+            raise serializers.ValidationError('Account blacklisted')
+
         if card.card_name != 'credit':
             raise serializers.ValidationError('Card must be credit')
 
@@ -341,10 +343,10 @@ class GetCreditInputSerializer(serializers.Serializer):
                 status='approved'
             )
 
-            card.balance += data['amount']
-            card.account.balance += data['amount']
-            card.save()
-            card.account.save()
+            Card.objects.filter(pk=card.pk).update(balance=F('balance') + data['amount'])
+            Account.objects.filter(pk=card.account_id).update(
+                balance=F('balance') + data['amount']
+            )
 
         return credit
 
@@ -368,7 +370,10 @@ class PutDepositInputSerializer(serializers.Serializer):
         if BlackListCard.objects.filter(card=card).exists():
             raise serializers.ValidationError('Card blacklisted')
 
-        if card.balance < data['amount']:
+        if BlackListAccount.objects.filter(account=card.account).exists():
+            raise serializers.ValidationError('Account blacklisted')
+
+        if card.balance < data['amount'] or card.account.balance < data['amount']:
             raise serializers.ValidationError('Not enough money')
 
         with transaction.atomic():
@@ -379,8 +384,14 @@ class PutDepositInputSerializer(serializers.Serializer):
                 status='active'
             )
 
-            card.balance -= data['amount']
-            card.save()
+            if not Account.objects.filter(
+                pk=card.account_id, balance__gte=data['amount']
+            ).update(balance=F('balance') - data['amount']):
+                raise serializers.ValidationError('Not enough money')
+            if not Card.objects.filter(
+                pk=card.pk, balance__gte=data['amount']
+            ).update(balance=F('balance') - data['amount']):
+                raise serializers.ValidationError('Not enough money')
 
         return deposit
 

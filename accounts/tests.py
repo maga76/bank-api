@@ -1,5 +1,6 @@
 import json
 from datetime import timedelta
+from unittest.mock import patch
 
 from django.test import override_settings
 from django.utils import timezone
@@ -7,6 +8,7 @@ from rest_framework.authtoken.models import Token
 from rest_framework.test import APITestCase
 
 from .models import User
+from .serializers import VerifyOTPSerializer
 
 
 class BearerAuthenticationTests(APITestCase):
@@ -106,6 +108,26 @@ class BearerAuthenticationTests(APITestCase):
             'passport_id': 'AB123456',
         }, format='json')
         self.assertEqual(response.status_code, 400)
+
+    def test_failed_account_creation_does_not_consume_otp(self):
+        user = User.objects.create_user(phone_num='992900000003', username='new-user')
+        user.otp = '123456'
+        user.otp_created_at = timezone.now()
+        user.save(update_fields=['otp', 'otp_created_at'])
+        serializer = VerifyOTPSerializer(data={
+            'phone_num': user.phone_num,
+            'otp': '123456',
+            'fname': 'Test',
+            'lname': 'User',
+            'passport_id': 'AB123456',
+        })
+        self.assertTrue(serializer.is_valid())
+        with patch('banck.models.Account.objects.create', side_effect=RuntimeError('database error')):
+            with self.assertRaises(RuntimeError):
+                serializer.save()
+        user.refresh_from_db()
+        self.assertFalse(user.is_verified)
+        self.assertEqual(user.otp, '123456')
 
     def test_expired_otp_cannot_be_used_for_login(self):
         self.user.otp = '123456'

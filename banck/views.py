@@ -70,6 +70,7 @@ class CardLookupView(generics.GenericAPIView):
 
             data = {
                 'card_id': card.id,
+                'card_number': card.card_id,
                 'card_type': card.card_name,
                 'owner': card.account.user.phone_num
             }
@@ -125,6 +126,7 @@ class TransferByCardView(generics.CreateAPIView):
     serializer_class = TransferByCardSerializer
     permission_classes = [permissions.IsAuthenticated]
 
+    @swagger_auto_schema(responses={201: TransactionSerializer})
     def post(self, request):
         serializer = self.get_serializer(data=request.data)
 
@@ -141,6 +143,7 @@ class TransferByPhoneView(generics.CreateAPIView):
     serializer_class = TransferByPhoneSerializer
     permission_classes = [permissions.IsAuthenticated]
 
+    @swagger_auto_schema(responses={201: TransactionSerializer})
     def post(self, request):
         serializer = self.get_serializer(data=request.data)
 
@@ -157,6 +160,7 @@ class InsideTransferByPhoneView(generics.CreateAPIView):
     serializer_class = InsideTransferByPhoneSerializer
     permission_classes = [permissions.IsAuthenticated]
 
+    @swagger_auto_schema(responses={201: TransactionInsideSerializer})
     def post(self, request):
         serializer = self.get_serializer(data=request.data)
 
@@ -173,6 +177,7 @@ class InsideTransferByCardView(generics.CreateAPIView):
     serializer_class = InsideTransferByCardSerializer
     permission_classes = [permissions.IsAuthenticated]
 
+    @swagger_auto_schema(responses={201: TransactionInsideSerializer})
     def post(self, request):
         serializer = self.get_serializer(data=request.data)
 
@@ -189,6 +194,7 @@ class GetCreditView(generics.CreateAPIView):
     serializer_class = GetCreditInputSerializer
     permission_classes = [permissions.IsAuthenticated]
 
+    @swagger_auto_schema(responses={201: GetCreditSerializer})
     def post(self, request):
         serializer = self.get_serializer(data=request.data)
 
@@ -205,6 +211,7 @@ class PutDepositView(generics.CreateAPIView):
     serializer_class = PutDepositInputSerializer
     permission_classes = [permissions.IsAuthenticated]
 
+    @swagger_auto_schema(responses={201: PutDepositSerializer})
     def post(self, request):
         serializer = self.get_serializer(data=request.data)
 
@@ -231,6 +238,7 @@ class AddAccountToBlacklistView(generics.CreateAPIView):
     serializer_class = BlackListAccountInputSerializer
     permission_classes = [permissions.IsAdminUser]
 
+    @swagger_auto_schema(responses={201: BlackListAccountSerializer})
     def post(self, request):
         serializer = self.get_serializer(data=request.data)
 
@@ -247,6 +255,7 @@ class AddCardToBlacklistView(generics.CreateAPIView):
     serializer_class = BlackListCardInputSerializer
     permission_classes = [permissions.IsAdminUser]
 
+    @swagger_auto_schema(responses={201: BlackListCardSerializer})
     def post(self, request):
         serializer = self.get_serializer(data=request.data)
 

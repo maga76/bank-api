@@ -2,6 +2,7 @@ import secrets
 from datetime import timedelta
 
 from django.core.mail import send_mail
+from django.db import transaction
 from django.utils import timezone
 from rest_framework import serializers
 from rest_framework.authtoken.models import Token
@@ -71,6 +72,7 @@ class VerifyOTPSerializer(serializers.Serializer):
         attrs['user'] = user
         return attrs
 
+    @transaction.atomic
     def create(self, validated_data):
         user = validated_data['user']
         user.is_verified = True
